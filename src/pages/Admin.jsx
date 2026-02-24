@@ -163,9 +163,25 @@ export default function Admin({ user }) {
           <div className="premium-card mb-4 border-premium-gold/50">
             <h2 className="text-xl font-bold flex items-center gap-2">Admin Bank <CheckCircle className="text-premium-gold" /></h2>
             <p className="text-sm text-zinc-400">Total coins available to distribute</p>
-            <h3 className="text-3xl font-mono text-premium-gold mt-2">
-              {profiles.find(p => p.email === 'mdmarzangazi@gmail.com')?.balance?.toFixed(2) || 0} 🪙
-            </h3>
+            <div className="flex items-center gap-4 mt-2">
+              <h3 className="text-3xl font-mono text-premium-gold">
+                {profiles.find(p => p.email === 'mdmarzangazi@gmail.com')?.balance?.toFixed(2) || 0} 🪙
+              </h3>
+              <button 
+                onClick={() => {
+                  const adminProfile = profiles.find(p => p.email === 'mdmarzangazi@gmail.com');
+                  if (!adminProfile) return;
+                  const amt = prompt("How many coins do you want to mint/add to the Admin Bank?");
+                  if (amt && !isNaN(amt)) {
+                    supabase.from('profiles').update({ balance: adminProfile.balance + parseFloat(amt) }).eq('email', 'mdmarzangazi@gmail.com')
+                      .then(() => fetchProfiles());
+                  }
+                }}
+                className="bg-zinc-800 text-xs px-3 py-2 rounded font-bold hover:bg-zinc-700 transition"
+              >
+                + Mint Coins
+              </button>
+            </div>
           </div>
 
           {profiles.map(p => {

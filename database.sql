@@ -85,12 +85,23 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
+DECLARE
+  user_count INT;
 BEGIN
+  -- Check total non-admin users
+  SELECT count(*) INTO user_count FROM public.profiles WHERE email != 'mdmarzangazi@gmail.com';
+
   IF new.email = 'mdmarzangazi@gmail.com' THEN
     INSERT INTO public.profiles (id, email, balance, worker_level, mining_rate, status)
     VALUES (new.id, new.email, 720000, 'Admin', 0, 'active')
     ON CONFLICT (id) DO NOTHING;
+  ELSIF user_count < 10 THEN
+    -- First 10 users get 100k
+    INSERT INTO public.profiles (id, email, balance, worker_level, mining_rate, status)
+    VALUES (new.id, new.email, 100000, 'Starter', 0.1, 'active')
+    ON CONFLICT (id) DO NOTHING;
   ELSE
+    -- Rest get 10k
     INSERT INTO public.profiles (id, email, balance, worker_level, mining_rate, status)
     VALUES (new.id, new.email, 10000, 'Starter', 0.1, 'active')
     ON CONFLICT (id) DO NOTHING;
