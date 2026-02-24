@@ -5,6 +5,7 @@ import { useToast } from '../lib/ToastContext';
 
 export default function Dashboard({ user }) {
   const [profile, setProfile] = useState(null);
+  const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [collecting, setCollecting] = useState(false);
   const showToast = useToast();
@@ -12,8 +13,14 @@ export default function Dashboard({ user }) {
   useEffect(() => {
     if (user) {
       fetchProfile();
+      fetchInvestments();
     }
   }, [user]);
+
+  const fetchInvestments = async () => {
+    const { data } = await supabase.from('user_investments').select('*').eq('user_id', user.id);
+    if (data) setInvestments(data);
+  };
 
   const fetchProfile = async () => {
     try {
@@ -135,6 +142,29 @@ export default function Dashboard({ user }) {
         >
           {collecting ? 'Collecting...' : 'Collect My Earnings'}
         </button>
+      </div>
+
+      <div className="premium-card mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="font-bold border-b border-zinc-800 pb-2 w-full">My Assets Overview</h3>
+        </div>
+        {investments.length === 0 ? (
+          <p className="text-sm text-zinc-500">You don't have any vehicle assets yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {investments.map(inv => (
+              <div key={inv.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                  <h4 className="font-bold text-sm text-white">{inv.asset_name}</h4>
+                  <p className="text-xs text-zinc-500">Hourly: +{inv.hourly_return.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full uppercase font-bold">Active</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="premium-card">

@@ -5,7 +5,8 @@ import Dashboard from './pages/Dashboard';
 import Shop from './pages/Shop';
 import Withdraw from './pages/Withdraw';
 import Auth from './pages/Auth';
-import { LayoutDashboard, ShoppingCart, Banknote, User, LogOut } from 'lucide-react';
+import Admin from './pages/Admin';
+import { LayoutDashboard, ShoppingCart, Banknote, User, LogOut, ShieldAlert } from 'lucide-react';
 import { ToastProvider } from './lib/ToastContext';
 
 export default function App() {
@@ -56,16 +57,17 @@ export default function App() {
               <Route path="/shop" element={<Shop profile={profile} user={session.user} onUpdate={fetchProfile} />} />
               <Route path="/withdraw" element={<Withdraw profile={profile} user={session.user} onUpdate={fetchProfile} />} />
               <Route path="/profile" element={<ProfilePage user={session.user} profile={profile} onUpdate={fetchProfile} />} />
+              <Route path="/admin" element={<Admin user={session.user} />} />
             </Routes>
           </main>
-          <Navbar />
+          <Navbar user={session.user} />
         </div>
       </Router>
     </ToastProvider>
   );
 }
 
-function Navbar() {
+function Navbar({ user }) {
   const location = useLocation();
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Home' },
@@ -73,6 +75,10 @@ function Navbar() {
     { path: '/withdraw', icon: Banknote, label: 'Withdraw' },
     { path: '/profile', icon: User, label: 'Profile' },
   ];
+
+  if (user?.email === 'mdmarzangazi@gmail.com') {
+    navItems.push({ path: '/admin', icon: ShieldAlert, label: 'Admin' });
+  }
 
   return (
     <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-3xl p-2 flex justify-around items-center z-50 shadow-2xl">
