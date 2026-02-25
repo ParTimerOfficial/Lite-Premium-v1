@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { LogIn, Mail, Lock, Sparkles } from 'lucide-react';
+import { LogIn, Mail, Lock, Sparkles, LayoutDashboard } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
 
 export default function Auth() {
@@ -32,7 +32,11 @@ export default function Auth() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: window.location.origin,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          }
         }
       });
       if (error) throw error;
@@ -42,71 +46,76 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] bg-premium-gold/10 rounded-full blur-[100px]"></div>
-      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-premium-gold/5 rounded-full blur-[100px]"></div>
+    <div className="min-h-screen bg-premium-dark flex items-center justify-center p-6 relative overflow-hidden text-white">
+      {/* Dynamic Background */}
+      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-premium-gold/5 rounded-full blur-[120px] animate-pulse"></div>
+      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-premium-gold/5 rounded-full blur-[100px]"></div>
 
       <div className="max-w-md w-full relative z-10">
         <div className="text-center mb-10">
-          <div className="inline-block p-4 rounded-3xl bg-premium-gold/10 mb-4 border border-premium-gold/20">
-            <Sparkles className="text-premium-gold size-10" />
+          <div className="inline-flex items-center justify-center p-5 rounded-[2.5rem] bg-premium-gold shadow-neon-gold mb-6 rotate-12 transition-transform hover:rotate-0 duration-500">
+            <LayoutDashboard className="text-black size-10" />
           </div>
-          <h1 className="text-4xl font-bold neon-text text-premium-gold mb-2">Lite Premium</h1>
-          <p className="text-zinc-500">Sign in to start your digital investment journey</p>
+          <h1 className="text-5xl font-black italic tracking-tighter text-premium-gold mb-3">
+            PARTIMER <span className="text-white not-italic">OFFICIAL</span>
+          </h1>
+          <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Premium Financial Ecosystem</p>
         </div>
 
-        <div className="premium-card">
-          <form onSubmit={handleAuth} className="space-y-4">
+        <div className="premium-card bg-zinc-900/40 border-zinc-800/50 p-8">
+          <form onSubmit={handleAuth} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase">Email Address</label>
-              <div className="relative">
+              <label className="text-[10px] uppercase font-black text-zinc-500 tracking-widest block px-1">Identity (Email)</label>
+              <div className="relative group">
                 <input 
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 px-10 text-white outline-none focus:border-premium-gold transition-colors"
+                  className="w-full bg-black/40 border-2 border-zinc-800 rounded-2xl py-4 px-12 text-white outline-none focus:border-premium-gold transition-all duration-300"
                   placeholder="name@example.com"
                   required
                 />
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-premium-gold transition-colors" size={20} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase">Password</label>
-              <div className="relative">
+              <label className="text-[10px] uppercase font-black text-zinc-500 tracking-widest block px-1">Security Key</label>
+              <div className="relative group">
                 <input 
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 px-10 text-white outline-none focus:border-premium-gold transition-colors"
+                  className="w-full bg-black/40 border-2 border-zinc-800 rounded-2xl py-4 px-12 text-white outline-none focus:border-premium-gold transition-all duration-300"
                   placeholder="••••••••"
                   required
                 />
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-premium-gold transition-colors" size={20} />
               </div>
             </div>
 
             <button 
               type="submit" 
               disabled={loading}
-              className="premium-button w-full flex items-center justify-center gap-2 mt-2"
+              className="premium-button w-full h-16 shadow-none hover:shadow-neon-gold group relative overflow-hidden"
             >
-              {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <span className="relative z-10 text-lg">
+                {loading ? 'Authenticating...' : (isSignUp ? 'Establish Portfolio' : 'Authorize Access')}
+              </span>
             </button>
           </form>
 
-          <div className="mt-6 flex items-center gap-4 text-zinc-700">
-            <div className="h-px bg-zinc-800 flex-1"></div>
-            <span className="text-xs uppercase font-bold text-zinc-500">Or continue with</span>
-            <div className="h-px bg-zinc-800 flex-1"></div>
+          <div className="mt-8 flex items-center gap-4">
+            <div className="h-px bg-zinc-800/50 flex-1"></div>
+            <span className="text-[10px] uppercase font-black text-zinc-600 tracking-tighter whitespace-nowrap">External Credentials</span>
+            <div className="h-px bg-zinc-800/50 flex-1"></div>
           </div>
 
           <button 
             type="button" 
             onClick={handleGoogleLogin}
-            className="w-full mt-6 py-3 border border-zinc-800 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors"
+            className="w-full mt-6 py-4 bg-zinc-800/30 border border-zinc-700/50 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-zinc-800 hover:border-zinc-600 transition-all duration-300"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -114,16 +123,16 @@ export default function Auth() {
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
               <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Google Login
+            Rapid Auth (Google)
           </button>
           
-          <p className="mt-8 text-center text-sm text-zinc-500">
-            {isSignUp ? "Already have an account?" : "Don't have an account?"}{' '}
+          <p className="mt-8 text-center text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+            {isSignUp ? "Joined already?" : "New to the platform?"}{' '}
             <button 
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-premium-gold font-bold hover:underline"
+              className="text-premium-gold font-black underline underline-offset-4 decoration-2"
             >
-              {isSignUp ? 'Sign In' : 'Sign Up'}
+              {isSignUp ? 'AUTHORIZE' : 'INITIATE'}
             </button>
           </p>
         </div>

@@ -1,153 +1,223 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Wallet, CreditCard, Send, AlertTriangle } from 'lucide-react';
+import { Wallet, CreditCard, Send, AlertTriangle, Clock, ShieldCheck, History, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const COIN_TO_BDT = 720;
 
 export default function Withdraw({ profile, user, onUpdate }) {
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState('crypto');
-  const [address, setAddress] = useState('');
+  const [activeTab, setActiveTab] = useState('request');
+  const [amountCoins, setAmountCoins] = useState('');
+  const [method, setMethod] = useState('Bkash');
+  const [number, setNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [history, setHistory] = useState([]);
   const showToast = useToast();
 
-  const minWithdraw = 1000;
+  const minWithdrawCoins = 7200; // 10 BDT
+
+  useEffect(() => {
+    if (user) {
+      fetchHistory();
+    }
+  }, [user, activeTab]);
+
+  const fetchHistory = async () => {
+    const { data } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (data) setHistory(data);
+  };
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
-    const withdrawAmount = parseFloat(amount);
-
-    if (isNaN(withdrawAmount) || withdrawAmount < minWithdraw) {
-       return showToast(`Minimum withdrawal is ${minWithdraw} coins.`, "error");
-    }
-
-    if (profile.balance < withdrawAmount) {
-      return showToast("Insufficient balance!", "error");
-    }
-
-    if (!address) {
-      return showToast("Please provide a valid destination address/id.", "error");
-    }
+    const coins = parseFloat(amountCoins);
+    if (isNaN(coins) || coins < minWithdrawCoins) return showToast(`Minimum withdrawal is ${minWithdrawCoins} Coins (৳10).`, "error");
+    if (profile.balance < coins) return showToast("Insufficient Coins!", "error");
+    if (!number) return showToast("Account number is required.", "error");
 
     setSubmitting(true);
     try {
-      // Deduct balance
-      const { error: balanceError } = await supabase.from('profiles').update({ 
-        balance: profile.balance - withdrawAmount 
-      }).eq('id', user.id);
-
-      if (balanceError) throw balanceError;
-
-      // Note: In a real app, you'd insert into a 'withdrawals' table
-      // Since the schema might not have it yet, we just alert or show success
-      // Let's assume there is a withdrawals table based on the 'Lite Premium' context
+      const bdt = coins / COIN_TO_BDT;
       
+      // 1. Log request
       const { error: logError } = await supabase.from('withdrawals').insert([{
         user_id: user.id,
         email: user.email,
-        amount: withdrawAmount,
+        amount_coins: coins,
+        amount_bdt: bdt,
         method: method,
-        number: address, // Using address field as the payout number
+        number: number,
         status: 'pending'
       }]);
-
       if (logError) throw logError;
 
-      showToast("Withdrawal request submitted! Admin will pay you within 24 hours.", "success");
-      setAmount('');
-      setAddress('');
+      // 2. Deduct balance
+      const { error: balError } = await supabase.from('profiles').update({ 
+        balance: profile.balance - coins 
+      }).eq('id', user.id);
+      if (balError) throw balError;
+
+      showToast("Withdrawal submitted! Processing starts at 10 AM.", "success");
+      setAmountCoins('');
+      setNumber('');
+      setActiveTab('history');
       if (onUpdate) onUpdate();
     } catch (err) {
-      console.error('Withdrawal error:', err);
-      showToast("Error processing withdrawal. Please contact support.", "error");
+      showToast("Transaction failed. Contact Admin.", "error");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-lg mx-auto pb-24">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold neon-text text-premium-gold flex items-center gap-2">
-          Withdraw <Wallet className="size-8" />
-        </h1>
-        <p className="text-zinc-500 text-sm mt-1">Cash out your hard-earned coins</p>
+    <div className="p-6 max-w-lg mx-auto space-y-8">
+      <header>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-red-500 rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+             <Wallet className="text-white size-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black italic tracking-tighter text-white uppercase">Cash Out</h1>
+            <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Rate: {COIN_TO_BDT} Coins = 1 BDT</p>
+          </div>
+        </div>
       </header>
 
-      <div className="premium-card mb-6 bg-red-500/5 border-red-500/20">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="text-red-500 shrink-0 mt-1" size={18} />
-          <p className="text-zinc-400 text-xs">
-            Withdrawals are processed manually for security. Please ensure your wallet address is correct. 
-            Minimum withdrawal: <span className="text-white font-bold">{minWithdraw} 🪙</span>
-          </p>
-        </div>
+      <div className="bg-zinc-900/50 p-4 border border-zinc-800 rounded-2xl flex items-start gap-4">
+         <Clock className="text-premium-gold size-5 flex-shrink-0 mt-0.5" />
+         <div>
+           <p className="text-white text-xs font-black uppercase tracking-widest">Processing Window</p>
+           <p className="text-zinc-500 text-[10px] font-bold uppercase mt-1 italic">10:00 AM — 06:00 PM (Daily)</p>
+         </div>
       </div>
 
-      <form onSubmit={handleWithdraw} className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Amount to Withdraw</label>
-          <div className="relative">
-            <input 
-              type="number" 
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-4 px-12 text-2xl font-mono focus:border-premium-gold outline-none transition-colors"
-            />
-            <Coins className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={24} />
-          </div>
-          <p className="text-xs text-zinc-500 text-right">Available: {profile?.balance?.toFixed(2)} 🪙</p>
-        </div>
+      <div className="flex bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-800">
+        {['request', 'history'].map((tab) => (
+          <button 
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-3 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all ${activeTab === tab ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'text-zinc-500'}`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Withdrawal Method</label>
-          <div className="grid grid-cols-2 gap-3">
+      <AnimatePresence mode="wait">
+        {activeTab === 'request' ? (
+          <motion.form 
+            key="request"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            onSubmit={handleWithdraw} 
+            className="space-y-6"
+          >
+            <div className="space-y-4">
+              <label className="text-[10px] uppercase font-black text-zinc-500 tracking-widest block mb-2 px-1">Amount to Cashout (Coins)</label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  value={amountCoins}
+                  onChange={(e) => setAmountCoins(e.target.value)}
+                  placeholder="Min 7200 Coins"
+                  className="w-full bg-zinc-900 border-2 border-zinc-800 rounded-2xl py-5 px-6 text-white focus:border-red-500 outline-none transition-all font-mono font-black text-2xl"
+                />
+                {amountCoins && (
+                   <div className="absolute right-4 bottom-4 text-red-400 font-black italic text-xs bg-red-500/10 px-3 py-1 rounded-lg border border-red-500/20">
+                     = ৳ {(parseFloat(amountCoins) / COIN_TO_BDT).toFixed(2)} BDT
+                   </div>
+                )}
+              </div>
+              <p className="text-right text-[10px] text-zinc-600 font-black uppercase tracking-tighter">
+                Available Volume: {profile?.balance?.toLocaleString()} 🪙
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-[10px] uppercase font-black text-zinc-500 tracking-widest block mb-2 px-1">Payment Channel</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['Bkash', 'Nagad', 'Rocket'].map((m) => (
+                  <button 
+                    key={m}
+                    type="button" 
+                    onClick={() => setMethod(m)}
+                    className={`py-3 rounded-xl border-2 font-black text-[10px] uppercase transition-all ${method === m ? 'bg-red-500/10 border-red-500 text-red-500' : 'bg-transparent border-zinc-800 text-zinc-600'}`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="text-[10px] uppercase font-black text-zinc-500 tracking-widest block mb-2 px-1">Account Number</label>
+              <input 
+                type="text" 
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                placeholder="Enter Personal Number"
+                className="w-full bg-zinc-900 border-2 border-zinc-800 rounded-2xl py-4 px-5 text-white focus:border-red-500 outline-none transition-all font-mono font-black tracking-widest"
+              />
+            </div>
+
+            <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex gap-3">
+               <ShieldCheck className="text-zinc-600 size-5 flex-shrink-0" />
+               <p className="text-[9px] text-zinc-600 font-bold leading-relaxed uppercase">
+                 Note: For security, all withdrawals are audited by our financial compliance team. Ensure your BDT account is active.
+               </p>
+            </div>
+
             <button 
-              type="button" 
-              onClick={() => setMethod('crypto')}
-              className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${method === 'crypto' ? 'bg-premium-gold text-black border-premium-gold' : 'bg-transparent border-zinc-800 text-zinc-500'}`}
+              type="submit" 
+              disabled={submitting}
+              className="w-full h-16 bg-red-500 text-white rounded-2xl font-black italic tracking-tighter uppercase text-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-[1.01] transition-all disabled:opacity-50 disabled:grayscale"
             >
-              <Send size={18} /> Crypto
+              {submitting ? 'Authenticating...' : 'Confirm Withdrawal'}
             </button>
-            <button 
-              type="button" 
-              onClick={() => setMethod('bank')}
-              className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${method === 'bank' ? 'bg-premium-gold text-black border-premium-gold' : 'bg-transparent border-zinc-800 text-zinc-500'}`}
-            >
-              <CreditCard size={18} /> Wallet/Bank
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-zinc-400 uppercase tracking-wider">
-            {method === 'crypto' ? 'Wallet Address (USDT/TRX)' : 'Payment ID / Account'}
-          </label>
-          <input 
-            type="text" 
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder={method === 'crypto' ? '0x... or T...' : 'Enter your ID'}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-4 px-4 text-white focus:border-premium-gold outline-none transition-colors"
-          />
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={submitting}
-          className="premium-button w-full py-5 text-xl mt-4"
-        >
-          {submitting ? 'Processing...' : 'Submit Request'}
-        </button>
-      </form>
+          </motion.form>
+        ) : (
+          <motion.div 
+            key="history"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            {history.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-900/30 rounded-3xl border border-dashed border-zinc-800">
+                <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">No payout records found</p>
+              </div>
+            ) : (
+              history.map((req) => (
+                <div key={req.id} className="premium-card p-4 flex justify-between items-center bg-zinc-900/40 border-zinc-800">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                       <h3 className="font-black font-mono text-zinc-100">{req.amount_coins?.toLocaleString()} 🪙</h3>
+                       <p className="text-[8px] border border-red-500/30 px-2 rounded font-bold text-red-400 italic">৳ {req.amount_bdt?.toFixed(2)}</p>
+                    </div>
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{new Date(req.created_at).toLocaleDateString()} • {req.method}</p>
+                    <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter font-black">{req.number}</p>
+                  </div>
+                  <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 ${
+                    req.status === 'approved' ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
+                    req.status === 'rejected' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                    'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                  }`}>
+                    {req.status === 'approved' && <CheckCircle size={10} />}
+                    {req.status === 'rejected' && <XCircle size={10} />}
+                    {req.status === 'pending' && <Clock size={10} />}
+                    {req.status === 'approved' ? 'Paid' : req.status}
+                  </div>
+                </div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-}
-
-function Coins({ className, size }) {
-  return (
-    <div className={className}>
-       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="M17 10h1v4"/></svg>
-    </div>
-  )
 }
