@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Coins, TrendingUp, Clock, UserPlus } from 'lucide-react';
+import { Coins, TrendingUp, Clock, UserPlus, Sparkles } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard({ user }) {
   const [profile, setProfile] = useState(null);
@@ -104,9 +105,14 @@ export default function Dashboard({ user }) {
         <div className="flex justify-between items-start mb-4">
           <div>
             <p className="text-zinc-400 text-sm">Account Balance</p>
-            <h2 className="text-4xl font-mono font-bold text-white mt-1 flex items-center gap-2">
-              {profile?.balance?.toFixed(2)} <Coins className="text-premium-gold size-8" />
-            </h2>
+            <motion.h2 
+              key={profile?.balance}
+              initial={{ scale: 1.2, color: '#EAB308' }}
+              animate={{ scale: 1, color: '#FFFFFF' }}
+              className="text-4xl font-mono font-bold mt-1 flex items-center gap-2"
+            >
+              {profile?.balance?.toFixed(2)} <Coins className="text-premium-gold size-8 animate-pulse" />
+            </motion.h2>
           </div>
           <div className="bg-premium-gold/10 p-3 rounded-xl border border-premium-gold/20">
             <TrendingUp className="text-premium-gold" />
@@ -136,9 +142,18 @@ export default function Dashboard({ user }) {
         <button 
           onClick={collectIncome} 
           disabled={collecting}
-          className="premium-button w-full flex items-center justify-center gap-2"
+          className="premium-button w-full flex items-center justify-center gap-2 relative overflow-hidden"
         >
-          {collecting ? 'Collecting...' : 'Collect My Earnings'}
+          {collecting ? (
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            >
+              <Sparkles className="size-5" />
+            </motion.div>
+          ) : (
+            <>Collect My Earnings <Sparkles className="size-5" /></>
+          )}
         </button>
       </div>
 
