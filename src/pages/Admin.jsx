@@ -1,498 +1,565 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useToast } from '../lib/ToastContext';
-import { Users, Package, Settings, Plus, Edit2, Trash2, CheckCircle, Database, TrendingUp, AlertCircle, Clock, Shield, Search, XCircle, LogOut, Copy, UserPlus, Phone } from 'lucide-react';
+import { t } from '../lib/i18n';
+import { useTheme } from '../lib/ThemeContext';
+import { 
+  Users, 
+  DollarSign, 
+  Settings, 
+  AlertTriangle, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  RefreshCw,
+  TrendingUp,
+  BarChart3,
+  Gamepad2,
+  ShoppingBag,
+  Globe,
+  Shield,
+  Database,
+  Zap,
+  Clock,
+  TrendingDown
+} from 'lucide-react';
 
-export default function Admin({ user }) {
-  const showToast = useToast();
-  const [activeTab, setActiveTab] = useState('users');
-  const [profiles, setProfiles] = useState([]);
+const Admin = ({ session }) => {
+  const { getComponentStyles } = useTheme();
+  const styles = getComponentStyles();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [users, setUsers] = useState([]);
   const [assets, setAssets] = useState([]);
-  const [depositRequests, setDepositRequests] = useState([]);
-  const [withdrawRequests, setWithdrawRequests] = useState([]);
+  const [economy, setEconomy] = useState(null);
   const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState(null);
 
   useEffect(() => {
-    if (user?.email === 'mdmarzangazi@gmail.com') {
-      refreshAll();
+    if (session?.user?.email === 'mdmarzangazi@gmail.com') {
+      fetchData();
     }
-  }, [user]);
+  }, [session]);
 
-  const refreshAll = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    await Promise.all([
-      fetchProfiles(),
-      fetchAssets(),
-      fetchDepositRequests(),
-      fetchWithdrawRequests(),
-      fetchSettings()
-    ]);
-    setLoading(false);
-  };
+    try {
+      // Fetch all data
+      const [usersRes, assetsRes, economyRes, settingsRes] = await Promise.all([
+        supabase.from('users').select('*').order('created_at', { ascending: false }),
+        supabase.from('assets').select('*').order('price_coins', { ascending: true }),
+        supabase.from('economy_state').select('*').single(),
+        supabase.from('admin_settings').select('*').single()
+      ]);
 
-  const fetchSettings = async () => {
-    const { data } = await supabase.from('admin_settings').select('*').eq('id', 'global').single();
-    if (data) setSettings(data);
-  };
-
-  const fetchDepositRequests = async () => {
-    const { data } = await supabase.from('coin_requests').select('*').order('created_at', { ascending: false });
-    if (data) setDepositRequests(data);
-  };
-
-  const fetchWithdrawRequests = async () => {
-    const { data } = await supabase.from('withdrawals').select('*').order('created_at', { ascending: false });
-    if (data) setWithdrawRequests(data);
-  };
-
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    if (data) setProfiles(data);
-  };
-
-  const fetchAssets = async () => {
-    const { data } = await supabase.from('assets').select('*').order('created_at', { ascending: true });
-    if (data) setAssets(data);
-  };
-
-  const updateGlobalSettings = async (field, value) => {
-    const { error } = await supabase.from('admin_settings').update({ [field]: value }).eq('id', 'global');
-    if (!error) {
-      showToast("System Parameters Synchronized", "success");
-      fetchSettings();
+      if (usersRes.data) setUsers(usersRes.data);
+      if (assetsRes.data) setAssets(assetsRes.data);
+      if (economyRes.data) setEconomy(economyRes.data);
+      if (settingsRes.data) setSettings(settingsRes.data);
+    } catch (error) {
+      console.error('Admin fetch error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleUserAction = async (profile) => {
-    const action = prompt("Tactical Command (balance, badge, status, delete):", "balance");
-    if (!action) return;
+  const tabs = [
+    { id: 'dashboard', label: t('dashboard'), icon: BarChart3 },
+    { id: 'users', label: t('users'), icon: Users },
+    { id: 'assets', label: t('assets'), icon: DollarSign },
+    { id: 'economy', label: t('economy'), icon: TrendingUp },
+    { id: 'settings', label: t('settings'), icon: Settings },
+    { id: 'gaming', label: 'Gaming', icon: Gamepad2 },
+    { id: 'utility', label: 'Utility', icon: ShoppingBag },
+    { id: 'community', label: 'Community', icon: Globe },
+    { id: 'security', label: 'Security', icon: Shield },
+    { id: 'logs', label: 'Logs', icon: Database }
+  ];
 
-    if (action === 'balance') {
-      const amt = prompt("Balance Adjustment (e.g. +1000 or -500):", "0");
-      if (amt) {
-        const { error } = await supabase.rpc('increment', { 
-          row_id: profile.id, 
-          table_name: 'profiles', 
-          column_name: 'balance', 
-          amount: parseFloat(amt) 
-        });
-        if (!error) showToast("Neural Balance Updated", "success");
-      }
-    } else if (action === 'badge') {
-      const b = prompt("Badge Class (Silver, Gold, Platinum):", profile.badge);
-      if (b) {
-        await supabase.from('profiles').update({ badge: b }).eq('id', profile.id);
-        showToast("Authority Level Reclassified", "success");
-      }
-    } else if (action === 'status') {
-      const s = prompt("Operational Status (active, banned):", profile.status);
-      if (s) {
-        await supabase.from('profiles').update({ status: s }).eq('id', profile.id);
-        showToast("User Access Vector Modified", "success");
-      }
-    } else if (action === 'delete') {
-      if (confirm("Terminate user record?")) {
-        await supabase.from('profiles').delete().eq('id', profile.id);
-        showToast("Record Purged", "warning");
-      }
-    }
-    refreshAll();
-  };
-
-  const handleAssetAction = async (asset = null) => {
-    const isEdit = !!asset;
-    const name = prompt("Asset Designation (Name):", isEdit ? asset.name : "");
-    if (!name) return;
-    
-    const type = prompt("Vector Classification ('worker' or 'investor'):", isEdit ? asset.type : "worker");
-    const price = prompt("Deployment Cost (Internal Coins):", isEdit ? asset.price : "1000");
-    const stock_limit = prompt("Global Emission Limit (Stock):", isEdit ? asset.stock_limit : "100");
-    const lifecycle = prompt("Operational Lifecycle (Days):", isEdit ? asset.lifecycle_days : "30");
-    
-    let rate = 0;
-    let profit_tier = 0;
-
-    if (type === 'worker') {
-      rate = prompt("Active Generation Velocity (Coins/Hour):", isEdit ? asset.rate : "10");
-    } else {
-      profit_tier = prompt("Strategic Profit Target (Monthly Total Coins):", isEdit ? asset.profit_tier_coins : "5000");
-    }
-
-    const payload = {
-      name,
-      type,
-      price: parseFloat(price),
-      stock_limit: parseInt(stock_limit),
-      lifecycle_days: parseInt(lifecycle),
-      rate: parseFloat(rate || 0),
-      profit_tier_coins: parseFloat(profit_tier || 0),
-      icon: type === 'worker' ? 'Zap' : 'Rocket'
-    };
-
-    const { error } = isEdit 
-      ? await supabase.from('assets').update(payload).eq('id', asset.id)
-      : await supabase.from('assets').insert([payload]);
-
-    if (!error) {
-       showToast(isEdit ? "Asset configuration synchronized!" : "New asset vector deployed!", "success");
-       fetchAssets();
-    }
-  };
-
-  const approveDeposit = async (req) => {
-    const { error } = await supabase.rpc('approve_coin_request', { req_id: req.id });
-    if (!error) {
-      showToast("Deposit Captured & Verified", "success");
-      refreshAll();
-    }
-  };
-
-  if (user?.email !== 'mdmarzangazi@gmail.com') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-6">
-        <div className="premium-card text-center max-w-sm space-y-6">
-          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
-             <AlertCircle className="text-red-500 size-10" />
+  const AdminLayout = ({ children }) => (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
+      {/* Header */}
+      <header className="border-b border-gray-700 bg-black/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <Shield size={24} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  Admin Command Center
+                </h1>
+                <p className="text-sm text-gray-400">System Control & Monitoring</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                Super Admin
+              </span>
+              <button
+                onClick={fetchData}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+            </div>
           </div>
-          <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter">Access Denied</h2>
-          <p className="text-zinc-500 text-xs font-bold uppercase leading-relaxed">Security clearance level insufficient. Protocol 403 active.</p>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+              <h2 className="text-lg font-semibold mb-4 text-gray-200">Navigation</h2>
+              <nav className="space-y-2">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${
+                        activeTab === tab.id
+                          ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-500/30'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                      }`}
+                    >
+                      <Icon size={20} />
+                      <span className="font-medium">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="mt-6 bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-300 mb-3">System Overview</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Users</span>
+                  <span className="text-white font-mono">{users.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Assets</span>
+                  <span className="text-white font-mono">{assets.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Market Demand</span>
+                  <span className={`font-mono ${economy?.market_demand_index > 1 ? 'text-green-400' : 'text-red-400'}`}>
+                    {economy?.market_demand_index?.toFixed(2) || '0.00'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Dashboard Tab
+  const DashboardTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white">System Dashboard</h2>
+        <span className="text-sm text-gray-400">Last updated: {new Date().toLocaleString()}</span>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Users"
+          value={users.length}
+          icon={<Users size={24} />}
+          color="from-blue-500 to-cyan-500"
+        />
+        <StatCard
+          title="Total Coins"
+          value={economy?.total_coins_circulation?.toFixed(0) || '0'}
+          icon={<DollarSign size={24} />}
+          color="from-yellow-500 to-orange-500"
+        />
+        <StatCard
+          title="Market Index"
+          value={economy?.market_demand_index?.toFixed(2) || '0.00'}
+          icon={<TrendingUp size={24} />}
+          color="from-green-500 to-emerald-500"
+        />
+        <StatCard
+          title="Inflation Rate"
+          value={`${(economy?.inflation_rate || 0).toFixed(2)}%`}
+          icon={<TrendingDown size={24} />}
+          color="from-red-500 to-pink-500"
+        />
+      </div>
+
+      {/* Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">Recent Users</h3>
+          <div className="space-y-2">
+            {users.slice(0, 5).map(user => (
+              <div key={user.id} className="flex justify-between items-center p-2 bg-black/30 rounded">
+                <span className="text-sm">{user.username || user.email}</span>
+                <span className="text-xs text-gray-400">{new Date(user.created_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">System Status</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm">Database</span>
+              <span className="text-green-400 text-sm">✓ Online</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Auth System</span>
+              <span className="text-green-400 text-sm">✓ Active</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Collection Engine</span>
+              <span className="text-green-400 text-sm">✓ Running</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Users Tab
+  const UsersTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white">User Management</h2>
+        <div className="flex gap-2">
+          <button className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30">
+            <Plus size={16} /> Add User
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-700">
+        <table className="w-full">
+          <thead className="bg-gray-700/50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Balance</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700">
+            {users.map(user => (
+              <tr key={user.id} className="hover:bg-gray-700/50">
+                <td className="px-4 py-3">
+                  <div>
+                    <div className="font-medium">{user.username || user.email}</div>
+                    <div className="text-xs text-gray-400">{user.email}</div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 font-mono text-green-400">{user.coins_balance?.toFixed(2)}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    user.is_verified ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {user.is_verified ? 'Verified' : 'Pending'}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedUser(user)}
+                      className="p-1 text-blue-400 hover:text-blue-300"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button className="p-1 text-yellow-400 hover:text-yellow-300">
+                      <Edit size={16} />
+                    </button>
+                    <button className="p-1 text-red-400 hover:text-red-300">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // Assets Tab
+  const AssetsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white">Asset Management</h2>
+        <button className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30">
+          <Plus size={16} /> Add Asset
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {assets.map(asset => (
+          <div key={asset.id} className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="font-semibold">{asset.name}</h3>
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                asset.type === 'worker' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'
+              }`}>
+                {asset.type}
+              </span>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Price</span>
+                <span className="font-mono text-green-400">{asset.price_coins}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Base Rate</span>
+                <span className="font-mono">{asset.base_rate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Risk Level</span>
+                <span className={`text-xs px-2 py-1 rounded ${
+                  asset.risk_level === 'high' ? 'bg-red-500/20 text-red-400' :
+                  asset.risk_level === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-green-500/20 text-green-400'
+                }`}>
+                  {asset.risk_level}
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button className="flex-1 px-3 py-2 bg-blue-500/20 text-blue-400 rounded text-sm hover:bg-blue-500/30">
+                Edit
+              </button>
+              <button className="px-3 py-2 bg-red-500/20 text-red-400 rounded text-sm hover:bg-red-500/30">
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Economy Tab
+  const EconomyTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white">Economy Control</h2>
+        <button
+          onClick={updateEconomy}
+          className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30"
+        >
+          <RefreshCw size={16} /> Update Economy
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">Current State</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Total Coins</span>
+              <span className="font-mono text-green-400">{economy?.total_coins_circulation?.toFixed(0) || '0'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Market Demand</span>
+              <span className="font-mono">{economy?.market_demand_index?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Season Modifier</span>
+              <span className="font-mono">{economy?.season_modifier?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Inflation Rate</span>
+              <span className="font-mono">{(economy?.inflation_rate || 0).toFixed(2)}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">Control Parameters</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Market Demand Index</label>
+              <input
+                type="number"
+                step="0.1"
+                defaultValue={economy?.market_demand_index || 1.0}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+                id="market-demand"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Season Modifier</label>
+              <input
+                type="number"
+                step="0.1"
+                defaultValue={economy?.season_modifier || 1.0}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+                id="season-modifier"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Inflation Rate (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                defaultValue={economy?.inflation_rate || 0}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+                id="inflation-rate"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Settings Tab
+  const SettingsTab = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-white">System Settings</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">Financial Settings</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Cashout Number</label>
+              <input
+                type="text"
+                defaultValue={settings?.cashout_number || ''}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Referral Bonus (Coins)</label>
+              <input
+                type="number"
+                defaultValue={settings?.referral_bonus_coins || 720}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Min Withdraw (Coins)</label>
+              <input
+                type="number"
+                defaultValue={settings?.min_withdraw_coins || 7200}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Exchange Rate (Coins/BDT)</label>
+              <input
+                type="number"
+                defaultValue={settings?.exchange_rate_coins_per_bdt || 720}
+                className="w-full px-3 py-2 bg-gray-600 rounded text-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-700/50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">System Status</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Maintenance Mode</span>
+              <input
+                type="checkbox"
+                defaultChecked={settings?.is_maintenance || false}
+                className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Auto Updates</span>
+              <input
+                type="checkbox"
+                defaultChecked={true}
+                className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Helper Components
+  const StatCard = ({ title, value, icon, color }) => (
+    <div className="bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-lg p-4 border border-gray-600">
+      <div className="flex justify-between items-start mb-2">
+        <div className={`w-10 h-10 bg-gradient-to-r ${color} rounded-lg flex items-center justify-center`}>
+          {icon}
+        </div>
+      </div>
+      <div className="text-sm text-gray-400">{title}</div>
+      <div className="text-2xl font-bold text-white font-mono">{value}</div>
+    </div>
+  );
+
+  const updateEconomy = async () => {
+    const marketDemand = parseFloat(document.getElementById('market-demand')?.value || economy?.market_demand_index);
+    const seasonModifier = parseFloat(document.getElementById('season-modifier')?.value || economy?.season_modifier);
+    const inflationRate = parseFloat(document.getElementById('inflation-rate')?.value || economy?.inflation_rate);
+
+    try {
+      const { error } = await supabase.rpc('update_economy_parameters', {
+        new_market_demand: marketDemand,
+        new_season_modifier: seasonModifier,
+        new_inflation_rate: inflationRate
+      });
+
+      if (error) throw error;
+      fetchData();
+    } catch (error) {
+      console.error('Update economy error:', error);
+    }
+  };
+
+  if (session?.user?.email !== 'mdmarzangazi@gmail.com') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
+          <p className="text-gray-400">You must be a Super Admin to access this panel.</p>
         </div>
       </div>
     );
   }
 
-  const filteredProfiles = profiles.filter(p => p.email.toLowerCase().includes(searchQuery.toLowerCase()));
-
   return (
-    <div className="p-6 max-w-5xl mx-auto pb-40 space-y-10">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-        <div className="space-y-2">
-           <div className="flex items-center gap-3">
-              <div className="p-3 bg-premium-gold/10 rounded-2xl border border-premium-gold/20">
-                 <Shield className="text-premium-gold size-6" />
-              </div>
-              <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase leading-none">Command <span className="text-premium-gold">Center</span></h1>
-           </div>
-           <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.4em] ml-[68px]">Strategic Oversight Protocol</p>
-        </div>
-
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 flex items-center gap-6 shadow-2xl">
-           <div className="text-right border-r border-zinc-800 pr-6">
-              <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest">Global Liquidity</p>
-              <p className="text-2xl font-mono text-premium-gold font-black">{profiles.reduce((a,c) => a+(c.balance||0), 0).toLocaleString()} <span className="text-[10px] italic">🪙</span></p>
-           </div>
-           <button onClick={refreshAll} className="p-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl transition-all text-zinc-400">
-             <Clock size={20} className={loading ? 'animate-spin' : ''} />
-           </button>
-        </div>
-      </header>
-
-      <nav className="flex bg-zinc-900 border-2 border-zinc-800 p-2 rounded-[2.5rem] sticky top-4 z-50 backdrop-blur-3xl shadow-3xl">
-        {[
-          { id: 'users', icon: Users, label: 'Profiles' },
-          { id: 'deposits', icon: Plus, label: 'Capital' },
-          { id: 'withdrawals', icon: TrendingUp, label: 'Outflow' },
-          { id: 'assets', icon: Package, label: 'Assets' },
-          { id: 'settings', icon: Settings, label: 'Config' }
-        ].map((tab) => (
-          <button 
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-4 rounded-[1.8rem] text-[10px] font-black uppercase tracking-[0.1em] transition-all duration-500 flex items-center justify-center gap-2 ${activeTab === tab.id ? 'bg-premium-gold text-black shadow-neon-gold scale-[1.05]' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
-          >
-            <tab.icon size={16} /> <span className="hidden sm:inline">{tab.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      {activeTab === 'users' && (
-        <div className="space-y-6">
-          <div className="relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-premium-gold transition-colors" size={20} />
-            <input 
-              type="text" 
-              placeholder="Query Identity Database (Email)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] py-6 pl-16 pr-8 text-white font-bold placeholder:text-zinc-700 focus:border-premium-gold/50 focus:outline-none focus:shadow-neon-gold/10 transition-all text-sm"
-            />
-          </div>
-
-          <div className="grid gap-4">
-            {filteredProfiles.map(p => (
-              <div key={p.id} className={`premium-card p-6 flex flex-col sm:flex-row justify-between items-center gap-6 group hover:border-premium-gold/30 transition-all ${p.status === 'banned' ? 'opacity-50 grayscale' : ''}`}>
-                <div className="flex items-center gap-5 w-full">
-                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black border-2 transition-all duration-500 ${p.badge === 'Platinum' ? 'bg-premium-gold/10 text-premium-gold border-premium-gold/40 shadow-neon-gold' : 'bg-zinc-900 text-zinc-700 border-zinc-800'}`}>
-                     {p.email[0].toUpperCase()}
-                   </div>
-                   <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-black text-zinc-100 uppercase tracking-tight">{p.email}</p>
-                        {p.status === 'banned' && <XCircle size={14} className="text-red-500" />}
-                        {p.badge === 'Platinum' && <CheckCircle size={14} className="text-premium-gold" />}
-                      </div>
-                      <div className="flex items-center gap-3">
-                         <span className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">{p.badge} Tier</span>
-                         <span className="text-[9px] font-black uppercase text-zinc-800">•</span>
-                         <span className="text-[9px] font-black uppercase text-zinc-600">Refs: {p.referral_count || 0}</span>
-                      </div>
-                   </div>
-                   <div className="text-right hidden sm:block pr-6 border-r border-zinc-800">
-                      <p className="text-[8px] font-black uppercase text-zinc-700 mb-1">Portfolio</p>
-                      <p className="font-mono font-black text-premium-gold">{(p.balance || 0).toLocaleString()} 🪙</p>
-                   </div>
-                </div>
-                <button onClick={() => handleUserAction(p)} className="p-4 bg-zinc-800 hover:bg-premium-gold hover:text-black rounded-2xl transition-all border border-zinc-700 active:scale-90"><Edit2 size={18} /></button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'deposits' && (
-        <div className="grid gap-4">
-           {depositRequests.length === 0 ? <EmptyState msg="No capital flow detected" /> : 
-            depositRequests.map(req => (
-              <div key={req.id} className="premium-card p-8 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-[0.02] rotate-12"><LogOut size={160} /></div>
-                <div className="flex gap-6 items-center w-full relative z-10">
-                  <div className={`p-5 rounded-3xl ${req.status === 'approved' ? 'bg-green-500/10 text-green-500' : 'bg-premium-gold/10 text-premium-gold shadow-inner'}`}>
-                     <Plus size={32} />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-black italic text-zinc-100 uppercase leading-none">{req.email}</h3>
-                    <div className="flex flex-wrap gap-2">
-                       <span className="text-[9px] font-black bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg uppercase border border-zinc-700/50">{req.method}</span>
-                       <span className="text-[9px] font-black bg-premium-gold/20 text-premium-gold px-3 py-1 rounded-lg uppercase border border-premium-gold/20 tracking-widest">{req.transaction_id}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-8 w-full md:w-auto relative z-10">
-                   <div className="text-right min-w-[140px]">
-                      <p className="text-[9px] font-black uppercase text-zinc-600 mb-1">Target Capital</p>
-                      <p className="text-2xl font-mono font-black text-premium-gold">+{req.coins_to_add?.toLocaleString()} 🪙</p>
-                      <p className="text-[10px] font-bold text-zinc-500 italic">৳ {req.amount_bdt}</p>
-                   </div>
-                   {req.status === 'pending' && (
-                     <button 
-                        onClick={() => approveDeposit(req)}
-                        className="h-16 bg-green-500 text-black px-8 rounded-[1.5rem] font-black italic uppercase tracking-tighter hover:scale-105 hover:shadow-neon-green transition-all"
-                     >AUTHENTICATE</button>
-                   )}
-                </div>
-              </div>
-            ))
-           }
-        </div>
-      )}
-
-      {activeTab === 'withdrawals' && (
-         <div className="grid gap-4">
-           {withdrawRequests.length === 0 ? <EmptyState msg="No liquidity exit requests" /> : 
-            withdrawRequests.map(req => (
-              <div key={req.id} className="premium-card p-8 flex flex-col md:flex-row justify-between items-center gap-8 relative group">
-                <div className="flex gap-6 items-center w-full">
-                  <div className={`p-5 rounded-3xl ${req.status === 'pending' ? 'bg-red-500/10 text-red-500' : 'bg-zinc-900 text-zinc-700'}`}>
-                     <LogOut size={32} />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-black italic text-white uppercase">{req.email}</h3>
-                    <p className="text-[10px] font-black text-premium-gold uppercase tracking-widest">{req.method} • {req.number}</p>
-                    <p className="text-[9px] font-bold text-zinc-600 uppercase italic">{new Date(req.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-8 w-full md:w-auto">
-                   <div className="text-right min-w-[140px]">
-                      <p className="text-[9px] font-black uppercase text-zinc-700 mb-1">Exiting Volume</p>
-                      <p className="text-2xl font-mono font-black text-red-500">-{req.amount_coins?.toLocaleString()} 🪙</p>
-                      <p className="text-[10px] font-bold text-zinc-500">৳ {req.amount_bdt?.toFixed(2)}</p>
-                   </div>
-                   {req.status === 'pending' ? (
-                     <div className="flex gap-3">
-                        <button 
-                          onClick={async () => {
-                            await supabase.from('withdrawals').update({ status: 'approved' }).eq('id', req.id);
-                            showToast("Capital Liquidated", "success");
-                            refreshAll();
-                          }}
-                          className="h-16 bg-white text-black px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-all"
-                        >APPROVE</button>
-                        <button 
-                          onClick={async () => {
-                            const { data: userData } = await supabase.from('profiles').select('balance').eq('id', req.user_id).single();
-                            await supabase.from('profiles').update({ balance: (userData?.balance || 0) + req.amount_coins }).eq('id', req.user_id);
-                            await supabase.from('withdrawals').update({ status: 'rejected' }).eq('id', req.id);
-                            showToast("Request Returned", "info");
-                            refreshAll();
-                          }}
-                          className="h-16 bg-zinc-800 text-red-500 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-500/20 active:scale-95 transition-all"
-                        >VOID</button>
-                     </div>
-                   ) : (
-                     <div className={`px-6 py-3 rounded-2xl border ${req.status === 'approved' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'} text-[10px] font-black uppercase tracking-widest`}>
-                        {req.status}
-                     </div>
-                   )}
-                </div>
-              </div>
-            ))
-           }
-         </div>
-      )}
-
-      {activeTab === 'assets' && (
-        <div className="space-y-8">
-          <button 
-            onClick={() => handleAssetAction()}
-            className="w-full bg-premium-gold text-black py-6 rounded-[2.5rem] font-black italic tracking-tighter uppercase text-2xl shadow-neon-gold hover:scale-[1.01] transition-all flex items-center justify-center gap-4 group"
-          >
-            <Database className="group-hover:rotate-12 transition-transform" /> 
-            Deploy New Asset Class
-          </button>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {assets.map(a => (
-              <div key={a.id} className="relative bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-8 hover:border-premium-gold/40 transition-all duration-700 group overflow-hidden shadow-2xl">
-                <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-                   <TrendingUp size={160} />
-                </div>
-                
-                <div className="flex justify-between items-start mb-8 relative z-10">
-                  <div className={`p-5 rounded-3xl ${a.type === 'worker' ? 'bg-blue-500/10 text-blue-400' : 'bg-premium-gold/10 text-premium-gold shadow-inner border border-premium-gold/20'}`}>
-                    {a.type === 'worker' ? <Package size={32} /> : <Rocket size={32} />}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleAssetAction(a)} className="p-3 bg-zinc-800 text-zinc-500 hover:text-white rounded-xl transition-all"><Edit2 size={18} /></button>
-                    <button onClick={async () => {
-                       if(confirm("Expunge terminal vector?")) {
-                         await supabase.from('assets').delete().eq('id', a.id);
-                         fetchAssets();
-                       }
-                    }} className="p-3 bg-red-500/5 text-zinc-500 hover:text-red-500 rounded-xl transition-all"><Trash2 size={18} /></button>
-                  </div>
-                </div>
-                
-                <div className="mb-8 relative z-10">
-                   <h3 className="text-2xl font-black text-zinc-100 italic uppercase tracking-tighter leading-tight">{a.name}</h3>
-                   <div className="flex items-center gap-3 mt-3">
-                     <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${a.type === 'investor' ? 'bg-premium-gold text-black' : 'bg-zinc-800 text-zinc-600'}`}>{a.type} Vector</span>
-                     <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest leading-none">ID-{a.id.slice(0, 4)}</p>
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 relative z-10">
-                   <div className="bg-black/40 rounded-3xl p-5 border border-zinc-800/80">
-                      <p className="text-[9px] font-black text-zinc-700 uppercase mb-1">Cap Evaluation</p>
-                      <p className="font-mono font-black text-premium-gold text-lg">{a.price?.toLocaleString()} 🪙</p>
-                   </div>
-                   <div className="bg-black/40 rounded-3xl p-5 border border-zinc-800/80">
-                      <p className="text-[9px] font-black text-zinc-700 uppercase mb-1">{a.type === 'worker' ? 'Net Hourly' : 'Monthly Goal'}</p>
-                      <p className="font-mono font-black text-zinc-200 text-lg">{a.type === 'worker' ? `+${a.rate}` : a.profit_tier_coins}</p>
-                   </div>
-                   <div className="bg-black/40 rounded-3xl p-6 border border-zinc-800/80 col-span-2">
-                      <div className="flex justify-between items-center mb-2">
-                         <p className="text-[9px] font-black text-zinc-700 uppercase">Vector Density</p>
-                         <p className="text-[10px] font-mono font-black text-zinc-500">{a.units_sold} / {a.stock_limit}</p>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(a.units_sold/a.stock_limit)*100}%` }}
-                          className="h-full bg-premium-gold shadow-neon-gold" 
-                        />
-                      </div>
-                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'settings' && (
-        <div className="max-w-2xl mx-auto space-y-8">
-           <div className="bg-zinc-900 border-2 border-zinc-800 rounded-[3rem] p-10 space-y-10 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-premium-gold/50 to-transparent" />
-              
-              <div className="space-y-6">
-                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-premium-gold/10 rounded-2xl"><Phone className="text-premium-gold size-6" /></div>
-                    <h3 className="text-xl font-black italic uppercase text-white">Financial Endpoints</h3>
-                 </div>
-                 <div className="grid gap-4">
-                    <div className="bg-black/50 p-6 rounded-3xl border border-zinc-800/50 flex justify-between items-center group">
-                       <div>
-                          <p className="text-[10px] text-zinc-600 font-black uppercase mb-1">Official Cash-In Number</p>
-                          <p className="text-lg font-black text-white italic tracking-tighter">{settings?.cashout_number || '+8801234567890'}</p>
-                       </div>
-                       <button onClick={() => {
-                          const n = prompt("Update official Cash-in terminal number:", settings?.cashout_number);
-                          if(n) updateGlobalSettings('cashout_number', n);
-                       }} className="p-4 bg-zinc-800 hover:bg-premium-gold hover:text-black rounded-2xl transition-all"><Edit2 size={20} /></button>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="space-y-6">
-                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-red-500/10 rounded-2xl"><LogOut className="text-red-500 size-6" /></div>
-                    <h3 className="text-xl font-black italic uppercase text-white">Exit Protocols</h3>
-                 </div>
-                 <div className="grid gap-4">
-                    <div className="bg-black/50 p-6 rounded-3xl border border-zinc-800/50 flex justify-between items-center group">
-                       <div>
-                          <p className="text-[10px] text-zinc-600 font-black uppercase mb-1">Minimum Withdrawal Limit</p>
-                          <p className="text-lg font-black text-white italic tracking-tighter">{settings?.min_withdraw || 7200} <span className="text-[10px] opacity-40">COINS</span></p>
-                       </div>
-                       <button onClick={() => {
-                          const amt = prompt("Update global minimum withdrawal (Coins):", settings?.min_withdraw);
-                          if(amt) updateGlobalSettings('min_withdraw', parseFloat(amt));
-                       }} className="p-4 bg-zinc-800 hover:bg-premium-gold hover:text-black rounded-2xl transition-all"><Edit2 size={20} /></button>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="space-y-6">
-                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-premium-gold/10 rounded-2xl"><UserPlus className="text-premium-gold size-6" /></div>
-                    <h3 className="text-xl font-black italic uppercase text-white">Growth Logic</h3>
-                 </div>
-                 <div className="grid gap-4">
-                    <div className="bg-black/50 p-6 rounded-3xl border border-zinc-800/50 flex justify-between items-center group">
-                       <div>
-                          <p className="text-[10px] text-zinc-600 font-black uppercase mb-1">Signup Referral Reward</p>
-                          <p className="text-lg font-black text-white italic tracking-tighter">{settings?.referral_bonus || 720} <span className="text-[10px] opacity-40">COINS</span></p>
-                       </div>
-                       <button onClick={() => {
-                          const amt = prompt("Update global signup reward:", settings?.referral_bonus);
-                          if(amt) updateGlobalSettings('referral_bonus', parseFloat(amt));
-                       }} className="p-4 bg-zinc-800 hover:bg-premium-gold hover:text-black rounded-2xl transition-all"><Edit2 size={20} /></button>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="pt-6 border-t border-zinc-800 flex justify-center">
-                 <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.3em]">Operational Core v2.0</p>
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
-    </div>
+    <AdminLayout>
+      {activeTab === 'dashboard' && <DashboardTab />}
+      {activeTab === 'users' && <UsersTab />}
+      {activeTab === 'assets' && <AssetsTab />}
+      {activeTab === 'economy' && <EconomyTab />}
+      {activeTab === 'settings' && <SettingsTab />}
+      {activeTab === 'gaming' && <div className="text-center py-8 text-gray-400">Gaming System Coming Soon</div>}
+      {activeTab === 'utility' && <div className="text-center py-8 text-gray-400">Utility System Coming Soon</div>}
+      {activeTab === 'community' && <div className="text-center py-8 text-gray-400">Community Management Coming Soon</div>}
+      {activeTab === 'security' && <div className="text-center py-8 text-gray-400">Security Logs Coming Soon</div>}
+      {activeTab === 'logs' && <div className="text-center py-8 text-gray-400">System Logs Coming Soon</div>}
+    </AdminLayout>
   );
-}
+};
 
-function EmptyState({ msg }) {
-  return (
-    <div className="bg-zinc-900 border-2 border-dashed border-zinc-800 rounded-[3rem] py-32 text-center">
-       <div className="bg-zinc-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Database className="text-zinc-600 size-10" />
-       </div>
-       <p className="text-zinc-500 text-xs font-black uppercase tracking-[0.4em]">{msg}</p>
-    </div>
-  );
-}
+export default Admin;

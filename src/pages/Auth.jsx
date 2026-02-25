@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { LogIn, Mail, Lock, Sparkles, LayoutDashboard } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
+import { generateDeviceFingerprint } from '../lib/deviceFingerprint';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -14,11 +15,23 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Generate device fingerprint for security
+      const deviceHash = await generateDeviceFingerprint();
+      
       const { error } = isSignUp 
         ? await supabase.auth.signUp({ email, password })
         : await supabase.auth.signInWithPassword({ email, password });
         
       if (error) throw error;
+      
+      // Update user profile with device fingerprint
+      if (!isSignUp) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('users').update({ device_hash: deviceHash }).eq('id', user.id);
+        }
+      }
+      
       if (isSignUp) showToast("Check your email for confirmation!", "info");
     } catch (err) {
       showToast(err.message, "error");

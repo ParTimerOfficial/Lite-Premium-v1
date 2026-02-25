@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { ShoppingBag, Zap, Shield, Crown, HardHat, TrendingUp, Sparkles, AlertCircle, ShoppingCart, Rocket, Flame, Fingerprint, Activity, Layers, Truck, Bus, Hammer, Tractor, Store, PlusSquare, Box } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '../lib/ThemeContext';
+import { useTranslation } from '../lib/i18n';
 
 const COIN_TO_BDT = 720;
 const icons = { HardHat, Zap, Shield, Activity, Layers, Truck, Bus, Hammer, Tractor, Store, ShoppingBag, PlusSquare, Rocket, Flame, Box };
@@ -13,6 +15,8 @@ export default function Shop({ profile, user, onUpdate }) {
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('worker');
+  const { theme } = useTheme();
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchData();
@@ -25,7 +29,7 @@ export default function Shop({ profile, user, onUpdate }) {
   };
 
   const fetchAssets = async () => {
-    const { data } = await supabase.from('assets').select('*').order('price', { ascending: true });
+    const { data } = await supabase.from('assets').select('*').order('price_coins', { ascending: true });
     if (data) setAssets(data);
   };
 
@@ -37,7 +41,7 @@ export default function Shop({ profile, user, onUpdate }) {
 
   const buyAsset = async (asset) => {
     if (!profile) return;
-    if (profile.balance < asset.price) return showToast("Insufficient Balance! Please Cash In.", "error");
+    if (profile.balance < asset.price_coins) return showToast("Insufficient Balance! Please Cash In.", "error");
     if (asset.units_sold >= asset.stock_limit) return showToast("Market Exhausted!", "error");
     
     try {
@@ -46,8 +50,8 @@ export default function Shop({ profile, user, onUpdate }) {
         asset_id: asset.id,
         asset_name: asset.name,
         type: asset.type,
-        amount: asset.price,
-        hourly_return: asset.type === 'worker' ? asset.rate : 0,
+        amount: asset.price_coins,
+        hourly_return: asset.type === 'worker' ? asset.base_rate : 0,
         expiry_date: new Date(Date.now() + (asset.lifecycle_days || 30) * 24 * 60 * 60 * 1000).toISOString()
       }]);
       if (invError) throw invError;
@@ -58,8 +62,8 @@ export default function Shop({ profile, user, onUpdate }) {
       if (stockError) throw stockError;
 
       const { error: balError } = await supabase.from('profiles').update({ 
-        balance: profile.balance - asset.price,
-        mining_rate: asset.type === 'worker' ? (profile.mining_rate || 0) + asset.rate : profile.mining_rate
+        balance: profile.balance - asset.price_coins,
+        mining_rate: asset.type === 'worker' ? (profile.mining_rate || 0) + asset.base_rate : profile.mining_rate
       }).eq('id', user.id);
       if (balError) throw balError;
       
@@ -169,15 +173,15 @@ export default function Shop({ profile, user, onUpdate }) {
                     <div className="grid grid-cols-2 gap-5">
                       <div className="bg-black/80 p-6 rounded-[2rem] border-2 border-zinc-900 shadow-inner group-hover:border-zinc-800 transition-colors">
                         <p className="text-zinc-800 text-[9px] uppercase font-black mb-1 px-1">Price</p>
-                        <p className="text-premium-gold font-mono font-black text-2xl tabular-nums italic">{asset.price.toLocaleString()} 🪙</p>
-                        <p className="text-[10px] text-zinc-700 font-bold mt-2 tracking-tighter italic border-t border-zinc-900/50 pt-2">৳ {(asset.price / COIN_TO_BDT).toFixed(0)} TK</p>
+                        <p className="text-premium-gold font-mono font-black text-2xl tabular-nums italic">{asset.price_coins.toLocaleString()} 🪙</p>
+                        <p className="text-[10px] text-zinc-700 font-bold mt-2 tracking-tighter italic border-t border-zinc-900/50 pt-2">৳ {(asset.price_coins / COIN_TO_BDT).toFixed(0)} TK</p>
                       </div>
                       <div className="bg-black/80 p-6 rounded-[2rem] border-2 border-zinc-900 shadow-inner group-hover:border-zinc-800 transition-colors">
                         <p className={`text-[9px] uppercase font-black mb-1 px-1 ${isInvestor ? 'text-green-500' : 'text-blue-500'}`}>
                           {isInvestor ? 'Monthly' : 'Hourly'}
                         </p>
                         <p className="text-white font-mono font-black text-2xl tabular-nums italic">
-                          {isInvestor ? `${asset.profit_tier_coins}` : `+${asset.rate}`} <span className="text-[10px] text-zinc-800">C/H</span>
+                          {isInvestor ? `${asset.base_rate}` : `+${asset.base_rate}`} <span className="text-[10px] text-zinc-800">C/H</span>
                         </p>
                         <p className={`text-[10px] font-bold mt-2 tracking-tighter italic border-t border-zinc-900/50 pt-2 ${isInvestor ? 'text-green-900' : 'text-blue-900'}`}>Investment Logic</p>
                       </div>

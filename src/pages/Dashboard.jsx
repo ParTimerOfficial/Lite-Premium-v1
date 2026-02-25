@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { Coins, TrendingUp, Clock, UserPlus, Sparkles, MessageSquare, BadgeCheck, AlertTriangle, Newspaper, Shield, Trophy, Activity, Rocket, Zap, Fingerprint, Truck, Bus, Hammer, Tractor, Store, ShoppingCart, PlusSquare, Layers, Box, Briefcase } from 'lucide-react';
 import { useToast } from '../lib/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '../lib/ThemeContext';
+import { useTranslation } from '../lib/i18n';
+import { collectEarnings } from '../lib/collectionEngine';
 
 const COIN_TO_BDT = 720;
 const icons = { Zap, Shield, Activity, Layers, Truck, Bus, Hammer, Tractor, Store, ShoppingBag: ShoppingCart, PlusSquare, Rocket, Box };
@@ -16,6 +19,8 @@ export default function Dashboard({ user, profile, onUpdate }) {
   const [cycleProgress, setCycleProgress] = useState(0);
   const showToast = useToast();
   const timerRef = useRef(null);
+  const { theme } = useTheme();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (user) {
@@ -45,8 +50,8 @@ export default function Dashboard({ user, profile, onUpdate }) {
 
         let investorRate = 0;
         investments.forEach(inv => {
-          if (inv.type === 'investor' && inv.assets?.profit_tier_coins) {
-             investorRate += inv.assets.profit_tier_coins / (30 * 24);
+          if (inv.type === 'investor' && inv.assets?.base_rate) {
+             investorRate += inv.assets.base_rate / (30 * 24);
           }
         });
         const investorYield = diffHours * investorRate;
@@ -72,14 +77,18 @@ export default function Dashboard({ user, profile, onUpdate }) {
     setCollecting(true);
     
     try {
-      const { error } = await supabase.rpc('collect_earnings_expert', { target_user_id: user.id });
-      if (error) throw error;
+      // Use the collection engine for secure earnings collection
+      const result = await collectEarnings(user.id);
       
-      onUpdate();
-      setLiveCoins(0);
-      showToast("Profit extraction complete. Income secured.", "success");
+      if (result.success) {
+        onUpdate();
+        setLiveCoins(0);
+        showToast(`Profit extraction complete. Secured ${result.credited} coins.`, "success");
+      } else {
+        throw new Error(result.message || "Collection failed");
+      }
     } catch (err) {
-      showToast("Verification failed. Retry extraction.", "error");
+      showToast(err.message || "Verification failed. Retry extraction.", "error");
     } finally {
       setCollecting(false);
     }
@@ -104,8 +113,8 @@ export default function Dashboard({ user, profile, onUpdate }) {
   const workerRate = profile?.mining_rate || 0;
   let investorRate = 0;
   investments.forEach(inv => {
-    if (inv.type === 'investor' && inv.assets?.profit_tier_coins) {
-       investorRate += inv.assets.profit_tier_coins / (30 * 24);
+    if (inv.type === 'investor' && inv.assets?.base_rate) {
+       investorRate += inv.assets.base_rate / (30 * 24);
     }
   });
 
